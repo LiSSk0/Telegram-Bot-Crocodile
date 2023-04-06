@@ -1,5 +1,8 @@
 import logging
-from telegram.ext import Application, MessageHandler, CommandHandler, filters, ConversationHandler
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
+    ConversationHandler, CallbackQueryHandler, ContextTypes
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -7,7 +10,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
+BOT_TOKEN = ''
 
 
 async def help(update, context):
@@ -40,11 +43,32 @@ async def rules(update, context):
 
 
 async def start(update, context):
+    keyboard = [
+        [
+            InlineKeyboardButton("Правила игры", callback_data='rules_btn'),
+            InlineKeyboardButton("Помощь", callback_data="help_btn"),
+
+        ],
+        [InlineKeyboardButton("Играть", callback_data="game_btn"),
+         InlineKeyboardButton("Конец игры", callback_data="stop_btn"),
+         ],
+        [InlineKeyboardButton("Пропуск ведущего", callback_data="skip_btn"),
+         InlineKeyboardButton("Рейтинг", callback_data="rate_btn"), ]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.message.reply_text(
         """
         ⫸ Игра началась. *игрок* объясняет слово.
-        """)
+        """, reply_markup=reply_markup)
     return 1
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+
+    await query.answer()
+    await query.message.reply_text(text=f"{query.data}")
 
 
 async def first_response(update, context):
@@ -71,10 +95,12 @@ async def stop(update, context):
     return ConversationHandler.END
 
 
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("help", help))
+    application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("rules", rules))
 
     conv_handler = ConversationHandler(
