@@ -1,8 +1,6 @@
 import logging
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
-    ConversationHandler, CallbackQueryHandler, ContextTypes
+from telegram import ReplyKeyboardMarkup
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, ConversationHandler
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -10,13 +8,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-RULES, HELP, START_GAME, STOP, SKIP, RATE = range(6)
-BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
+BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
 
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text("""
+async def help(update, context):
+    await update.message.reply_text("""
     ⫸ Команды бота:
     /help - Помощь по боту
     /rules - Правила игры
@@ -27,72 +23,55 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """)
 
 
-async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text("""
+async def rules(update, context):
+    await update.message.reply_text("""
     ⫸ Правила игры в крокодила:
-
     • Есть ведущий и игроки, которые отгадывают слова.
-
     • После ввода команды /start задача ведущего — нажать кнопку "Посмотреть слово" и объяснить его игрокам, 
     не используя однокоренные слова. Если ведущий не в силах объяснить загаданное слово, его можно сменить, нажав
     кнопку "Следующее слово".
     • Задача игроков — отгадать загаданное слово, для этого нужно написать догадку в чат,
     по одному слову в сообщении.
-
     • За каждое отгаданное слово игрок получает 2 балла, а тот, кто объяснял - 1 балл.
     • В случае, если нечестный ведущий пишет слово-ответ в чат - с него снимаются 3 балла рейтинга.
     """)
-    return 1
 
 
 async def start(update, context):
-    keyboard = [
-        [
-            InlineKeyboardButton("Правила игры", callback_data=str(RULES)),
-            InlineKeyboardButton("Помощь", callback_data=str(HELP)),
+    keyboard = [["/start", "/stop"],
+                ["/rules", "/help"],
+                ["/rating"]]
 
-        ],
-        [InlineKeyboardButton("Играть", callback_data=str(START_GAME)),
-         InlineKeyboardButton("Конец игры", callback_data=str(STOP)),
-         ],
-        [InlineKeyboardButton("Пропуск ведущего", callback_data=str(SKIP)),
-         InlineKeyboardButton("Рейтинг", callback_data=str(RATE))]
-    ]
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
 
     await update.message.reply_text(
         """
         ⫸ Игра началась. *игрок* объясняет слово.
-        """, reply_markup=reply_markup, )
+        """, reply_markup=markup)
     return 1
 
 
-async def game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text("""
-    ⫸ game started""")
-    return 1
-
-
-async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text(
-        f"*вывод рейтинга*")
+async def first_response(update, context):
+    locality = update.message.text
+    await update.message.reply_text(f"first response")
     return 2
 
 
-async def skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text(
+async def second_response(update, context):
+    weather = update.message.text
+    logger.info(weather)
+    await update.message.reply_text("second response")
+    return ConversationHandler.END
+
+
+async def skip(update, context):
+    await update.message.reply_text(
         f"*смена ведущего*")
     return 2
 
 
-async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.message.reply_text("⫸ Игра завершена")
+async def stop(update, context):
+    await update.message.reply_text("⫸ Игра завершена")
     return ConversationHandler.END
 
 
@@ -106,22 +85,11 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            1: [
-                CallbackQueryHandler(rules, pattern="^" + str(RULES) + "$"),
-                CallbackQueryHandler(help, pattern="^" + str(HELP) + "$"),
-                CallbackQueryHandler(game, pattern="^" + str(START_GAME) + "$"),
-                # CallbackQueryHandler(skip, pattern="^" + str(SKIP) + "$"),
-                CallbackQueryHandler(stop, pattern="^" + str(STOP) + "$"),
-                # CallbackQueryHandler(rate, pattern="^" + str(RATE) + "$"),
-
-                # CallbackQueryHandler(three, pattern="^" + str(THREE) + "$"),
-                # CallbackQueryHandler(four, pattern="^" + str(FOUR) + "$"),
-            ],
-            # 1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response)],
-            # 2: []
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response)],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response)]
         },
 
-        fallbacks=[CommandHandler('stop', stop), CommandHandler('skip', skip)]
+        fallbacks=[CommandHandler('stop', stop)]
     )
 
     application.add_handler(conv_handler)
