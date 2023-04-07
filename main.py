@@ -1,6 +1,10 @@
 import logging
+from random import random
+
 from telegram import ReplyKeyboardMarkup
-from telegram.ext import Application, MessageHandler, CommandHandler, filters, ConversationHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
+    ConversationHandler, ContextTypes, CallbackQueryHandler
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -8,7 +12,29 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
+CHECK, NEW = range(2)
+BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
+
+v_id = 'id ведущего'
+
+
+async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query.from_user.id == v_id:
+        await query.answer('слово')
+    else:
+        await query.answer(f'сейчас ведущий {query.from_user.username}')
+    return 1
+
+
+async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query.from_user.id == v_id:
+        word_id = random.randint(0, 100)
+        await query.answer('новое слово')
+    else:
+        await query.answer(f'сейчас ведущий {query.from_user.username}')
+    return 1
 
 
 async def help(update, context):
@@ -38,16 +64,28 @@ async def rules(update, context):
 
 
 async def start(update, context):
-    keyboard = [["/start", "/stop"],
-                ["/rules", "/help"],
-                ["/rating"]]
+    keyboard1 = [["/start", "/stop"],
+                 ["/rules", "/help"],
+                 ["/rating"]]
+    keyboard2 = [
+        [
+            InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
+        ],
+        [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
+    ]
 
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+    markup = ReplyKeyboardMarkup(keyboard1, one_time_keyboard=False)
+    reply_markup = InlineKeyboardMarkup(keyboard2)
+    m = [markup, reply_markup]
 
     await update.message.reply_text(
         """
-        ⫸ Игра началась. *игрок* объясняет слово.
+        ⫸ Игра началась ⫷
         """, reply_markup=markup)
+    await update.message.reply_text(
+        """
+        *игрок* объясняет слово.
+        """, reply_markup=reply_markup)
     return 1
 
 
@@ -85,8 +123,11 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response)],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response)]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response),
+                CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
+                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response)],
+
         },
 
         fallbacks=[CommandHandler('stop', stop)]
