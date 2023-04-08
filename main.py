@@ -15,25 +15,25 @@ logger = logging.getLogger(__name__)
 CHECK, NEW = range(2)
 BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
 
-v_id = 'id ведущего'
+v = 0
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    if query.from_user.id == v_id:
+    if query.from_user.id == v.id:
         await query.answer('слово')
     else:
-        await query.answer(f'сейчас ведущий {query.from_user.username}')
+        await query.answer(f'сейчас ведущий @{v.username}')
     return 1
 
 
 async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    if query.from_user.id == v_id:
-        word_id = random.randint(0, 100)
+    if query.from_user.id == v.id:
+        # word_id = random.randint(0, 100)
         await query.answer('новое слово')
     else:
-        await query.answer(f'сейчас ведущий {query.from_user.username}')
+        await query.answer(f'сейчас ведущий @{v.username}')
     return 1
 
 
@@ -64,6 +64,7 @@ async def rules(update, context):
 
 
 async def start(update, context):
+    global v
     keyboard1 = [["/start", "/stop"],
                  ["/rules", "/help"],
                  ["/rating"]]
@@ -76,15 +77,15 @@ async def start(update, context):
 
     markup = ReplyKeyboardMarkup(keyboard1, one_time_keyboard=False)
     reply_markup = InlineKeyboardMarkup(keyboard2)
-    m = [markup, reply_markup]
+    v = update.effective_user
 
     await update.message.reply_text(
         """
         ⫸ Игра началась ⫷
         """, reply_markup=markup)
     await update.message.reply_text(
-        """
-        *игрок* объясняет слово.
+        f"""
+        @{v.username} объясняет слово.
         """, reply_markup=reply_markup)
     return 1
 
