@@ -1,5 +1,5 @@
 import logging
-from random import random
+from random import randint
 
 from telegram import ReplyKeyboardMarkup
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -9,31 +9,43 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
-
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
-BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
+BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
 
-v = 0
+ved = 0  # id ведущего
+current_word = ""  # текущее загаданное слово
+
+# база слов для игры
+with open('data/crocodile_words.txt', 'r', encoding='utf-8') as f:
+    LIST_OF_WORDS = f.read().split('\n')
+
+
+def generate_word():
+    global current_word
+    word_id = randint(0, len(LIST_OF_WORDS) - 1)
+    current_word = LIST_OF_WORDS[word_id]
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    if query.from_user.id == v.id:
-        await query.answer('слово')
+    if query.from_user.id == ved.id:
+        if current_word == '':
+            generate_word()
+        await query.answer("•Ваше слово: " + current_word)
     else:
-        await query.answer(f'сейчас ведущий @{v.username}')
+        await query.answer(f'Сейчас ведущий @{ved.username}')
     return 1
 
 
 async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    if query.from_user.id == v.id:
-        # word_id = random.randint(0, 100)
-        await query.answer('новое слово')
+    if query.from_user.id == ved.id:
+        generate_word()
+        await query.answer("•Ваше слово: " + current_word)
     else:
-        await query.answer(f'сейчас ведущий @{v.username}')
+        await query.answer(f'Сейчас ведущий @{ved.username}')
     return 1
 
 
@@ -64,29 +76,31 @@ async def rules(update, context):
 
 
 async def start(update, context):
-    global v
-    keyboard1 = [["/start", "/stop"],
-                 ["/rules", "/help"],
-                 ["/rating"]]
-    keyboard2 = [
+    global ved
+
+    keyboard_panel = [["/start", "/stop"],
+                      ["/rules", "/help"],
+                      ["/rating"]]
+
+    keyboard_button = [
         [
             InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
         ],
         [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
     ]
 
-    markup = ReplyKeyboardMarkup(keyboard1, one_time_keyboard=False)
-    reply_markup = InlineKeyboardMarkup(keyboard2)
-    v = update.effective_user
+    markup_kb1 = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=False)
+    markup_kb2 = InlineKeyboardMarkup(keyboard_button)
+    ved = update.effective_user
 
     await update.message.reply_text(
         """
         ⫸ Игра началась ⫷
-        """, reply_markup=markup)
+        """, reply_markup=markup_kb1)
     await update.message.reply_text(
         f"""
-        @{v.username} объясняет слово.
-        """, reply_markup=reply_markup)
+        💬 @{ved.username} объясняет слово.
+        """, reply_markup=markup_kb2)
     return 1
 
 
@@ -103,13 +117,10 @@ async def second_response(update, context):
     return ConversationHandler.END
 
 
-async def skip(update, context):
-    await update.message.reply_text(
-        f"*смена ведущего*")
-    return 2
-
-
 async def stop(update, context):
+    global current_word
+    current_word = ""
+
     await update.message.reply_text("⫸ Игра завершена")
     return ConversationHandler.END
 
