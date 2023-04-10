@@ -12,20 +12,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
-BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
+BOT_TOKEN = ""
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
 
 # база слов для игры
-with open('data/crocodile_words.txt', 'r', encoding='utf-8') as f:
+with open('crocodile_words.txt', 'r', encoding='utf-8') as f:
     LIST_OF_WORDS = f.read().split('\n')
 
 
 def generate_word():
     global current_word
     word_id = randint(0, len(LIST_OF_WORDS) - 1)
-    current_word = LIST_OF_WORDS[word_id]
+    while LIST_OF_WORDS[word_id].lower() == current_word:
+        word_id = randint(0, len(LIST_OF_WORDS) - 1)
+    current_word = LIST_OF_WORDS[word_id].lower()
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -104,19 +106,6 @@ async def start(update, context):
     return 1
 
 
-async def first_response(update, context):
-    locality = update.message.text
-    await update.message.reply_text(f"first response")
-    return 2
-
-
-async def second_response(update, context):
-    weather = update.message.text
-    logger.info(weather)
-    await update.message.reply_text("second response")
-    return ConversationHandler.END
-
-
 async def stop(update, context):
     global current_word
     current_word = ""
@@ -135,10 +124,8 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response),
-                CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
-                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response)],
+            1: [CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
+                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")]
 
         },
 
