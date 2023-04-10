@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
-BOT_TOKEN = ""
+BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
@@ -63,6 +63,21 @@ async def help(update, context):
     """)
 
 
+async def current(update, context):
+    keyboard_button = [
+        [
+            InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
+        ],
+        [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
+    ]
+    markup_kb2 = InlineKeyboardMarkup(keyboard_button)
+    await update.message.reply_text(
+        f"""
+            💬 @{ved.username} объясняет слово.
+            """, reply_markup=markup_kb2)
+    return 1
+
+
 async def rules(update, context):
     await update.message.reply_text("""
     ⫸ Правила игры в крокодила:
@@ -82,7 +97,7 @@ async def start(update, context):
 
     keyboard_panel = [["/start", "/stop"],
                       ["/rules", "/help"],
-                      ["/rating"]]
+                      ["/rating", "/current"]]
 
     keyboard_button = [
         [
@@ -119,6 +134,7 @@ def main():
 
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("rules", rules))
+    application.add_handler(CommandHandler("current", current))
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
