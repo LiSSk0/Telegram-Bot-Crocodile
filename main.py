@@ -21,6 +21,14 @@ current_word = ""  # текущее загаданное слово
 with open('crocodile_words.txt', 'r', encoding='utf-8') as f:
     LIST_OF_WORDS = f.read().split('\n')
 
+KEYBOARD_BUTTONS = [
+    [
+        InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
+    ],
+    [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
+]
+MARKUP = InlineKeyboardMarkup(KEYBOARD_BUTTONS)
+
 
 def generate_word():
     global current_word
@@ -64,17 +72,10 @@ async def help(update, context):
 
 
 async def current(update, context):
-    keyboard_button = [
-        [
-            InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
-        ],
-        [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
-    ]
-    markup_kb2 = InlineKeyboardMarkup(keyboard_button)
     await update.message.reply_text(
         f"""
             💬 @{ved.username} объясняет слово.
-            """, reply_markup=markup_kb2)
+            """, reply_markup=MARKUP)
     return 1
 
 
@@ -99,25 +100,17 @@ async def start(update, context):
                       ["/rules", "/help"],
                       ["/rating", "/current"]]
 
-    keyboard_button = [
-        [
-            InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
-        ],
-        [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
-    ]
-
-    markup_kb1 = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=False)
-    markup_kb2 = InlineKeyboardMarkup(keyboard_button)
+    markup_kb = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=False)
     ved = update.effective_user
 
     await update.message.reply_text(
         """
         ⫸ Игра началась ⫷
-        """, reply_markup=markup_kb1)
+        """, reply_markup=markup_kb)
     await update.message.reply_text(
         f"""
         💬 @{ved.username} объясняет слово.
-        """, reply_markup=markup_kb2)
+        """, reply_markup=MARKUP)
     return 1
 
 
@@ -127,6 +120,19 @@ async def stop(update, context):
 
     await update.message.reply_text("⫸ Игра завершена")
     return ConversationHandler.END
+
+
+async def first_response(update, context):
+    global current_word, ved
+    text = update.message.text
+    if current_word in text:
+        await update.message.reply_text(
+            f"Правиьно! @{update.effective_user.username} угадал!")
+        ved = update.effective_user
+        await update.message.reply_text(
+            f'Играем дальше! @{update.effective_user.username} ведущий.',
+            reply_markup=MARKUP)
+        return 2
 
 
 def main():
@@ -140,9 +146,10 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            1: [CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
-                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")]
-
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response),
+                CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
+                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, current)]
         },
 
         fallbacks=[CommandHandler('stop', stop)]
