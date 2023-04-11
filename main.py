@@ -12,22 +12,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
-BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
+BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
+is_started = False
 
 # база слов для игры
-with open('crocodile_words.txt', 'r', encoding='utf-8') as f:
+with open('data/crocodile_words.txt', 'r', encoding='utf-8') as f:
     LIST_OF_WORDS = f.read().split('\n')
 
-KEYBOARD_BUTTONS = [
+# кнопки
+BUTTONS = [
     [
         InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
     ],
     [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
 ]
-MARKUP = InlineKeyboardMarkup(KEYBOARD_BUTTONS)
+MARKUP = InlineKeyboardMarkup(BUTTONS)
 
 
 def generate_word():
@@ -39,24 +41,26 @@ def generate_word():
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    if query.from_user.id == ved.id:
-        if current_word == '':
-            generate_word()
-        await query.answer("•Ваше слово: " + current_word)
-    else:
-        await query.answer(f'Сейчас ведущий @{ved.username}')
+    if is_started:
+        query = update.callback_query
+        if query.from_user.id == ved.id:
+            if current_word == '':
+                generate_word()
+            await query.answer("•Ваше слово: " + current_word)
+        else:
+            await query.answer(f'•Сейчас ведущий @{ved.username}')
     return 1
 
 
 async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    if query.from_user.id == ved.id:
-        generate_word()
-        await query.answer("•Ваше слово: " + current_word)
-    else:
-        await query.answer(f'Сейчас ведущий @{ved.username}')
-    return 1
+    if is_started:
+        query = update.callback_query
+        if query.from_user.id == ved.id:
+            generate_word()
+            await query.answer("•Ваше слово: " + current_word)
+        else:
+            await query.answer("•Сейчас ведущий @" + ved.username)
+        return 1
 
 
 async def help(update, context):
@@ -72,11 +76,9 @@ async def help(update, context):
 
 
 async def current(update, context):
-    await update.message.reply_text(
-        f"""
-            💬 @{ved.username} объясняет слово.
-            """, reply_markup=MARKUP)
-    return 1
+    if is_started:
+        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.', reply_markup=MARKUP)
+        return 1
 
 
 async def rules(update, context):
@@ -94,45 +96,55 @@ async def rules(update, context):
 
 
 async def start(update, context):
-    global ved
+    global ved, is_started
 
-    keyboard_panel = [["/start", "/stop"],
-                      ["/rules", "/help"],
-                      ["/rating", "/current"]]
+    # keyboard_panel = [["/start", "/stop"],
+    #                   ["/rules", "/help"],
+    #                   ["/rating", "/current"]]
 
-    markup_kb = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=False)
-    ved = update.effective_user
+    # markup_kb = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=True)
 
-    await update.message.reply_text(
-        """
-        ⫸ Игра началась ⫷
-        """, reply_markup=markup_kb)
-    await update.message.reply_text(
-        f"""
-        💬 @{ved.username} объясняет слово.
-        """, reply_markup=MARKUP)
+    if not is_started:
+        is_started = True
+        ved = update.effective_user
+
+        await update.message.reply_text('⫸ Игра началась ⫷')
+        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.', reply_markup=MARKUP)
+
     return 1
 
 
 async def stop(update, context):
-    global current_word
+    global current_word, is_started
+
     current_word = ""
+    if is_started:
+        is_started = False
+        await update.message.reply_text("⫸ Игра завершена")
+        return ConversationHandler.END
+    else:
+        return 1
 
-    await update.message.reply_text("⫸ Игра завершена")
-    return ConversationHandler.END
 
-
-async def first_response(update, context):
+async def response(update, context):
     global current_word, ved
-    text = update.message.text
+
+    text = update.message.text.lower()
+    user = update.effective_user
     if current_word in text:
+        if user == ved:
+            await update.message.reply_text(f"🌟 Ведущий @{user.username} написал ответ в чат.")
+        else:
+            ved = user
+            await update.message.reply_text(
+                f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.")
+
+        generate_word()
         await update.message.reply_text(
-            f"Правиьно! @{update.effective_user.username} угадал!")
-        ved = update.effective_user
-        await update.message.reply_text(
-            f'Играем дальше! @{update.effective_user.username} ведущий.',
+            f'🌟 Играем дальше, @{user.username} ведущий.',
             reply_markup=MARKUP)
-        return 2
+
+        return 1
 
 
 def main():
@@ -146,17 +158,15 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response),
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, response),
                 CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
-                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, current)]
+                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")]
         },
 
         fallbacks=[CommandHandler('stop', stop)]
     )
 
     application.add_handler(conv_handler)
-
     application.run_polling()
 
 
