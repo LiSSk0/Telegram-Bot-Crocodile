@@ -1,7 +1,7 @@
 import logging
 from random import randint
+import sqlite3
 
-from telegram import ReplyKeyboardMarkup
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
     ConversationHandler, ContextTypes, CallbackQueryHandler
@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
-BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
+BOT_TOKEN = ""
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
@@ -77,7 +77,8 @@ async def help(update, context):
 
 async def current(update, context):
     if is_started:
-        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.', reply_markup=MARKUP)
+        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.',
+                                        reply_markup=MARKUP)
         return 1
 
 
@@ -98,18 +99,13 @@ async def rules(update, context):
 async def start(update, context):
     global ved, is_started
 
-    # keyboard_panel = [["/start", "/stop"],
-    #                   ["/rules", "/help"],
-    #                   ["/rating", "/current"]]
-
-    # markup_kb = ReplyKeyboardMarkup(keyboard_panel, one_time_keyboard=True)
-
     if not is_started:
         is_started = True
         ved = update.effective_user
 
         await update.message.reply_text('⫸ Игра началась ⫷')
-        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.', reply_markup=MARKUP)
+        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.',
+                                        reply_markup=MARKUP)
 
     return 1
 
@@ -133,8 +129,12 @@ async def response(update, context):
     user = update.effective_user
     if current_word in text:
         if user == ved:
-            await update.message.reply_text(f"🌟 Ведущий @{user.username} написал ответ в чат.")
+            score_updates(user.id, -3)
+            await update.message.reply_text(
+                f"🌟 Ведущий @{user.username} написал ответ в чат.")
         else:
+            score_updates(ved.id, 1)
+            score_updates(user.id, 2)
             ved = user
             await update.message.reply_text(
                 f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.")
@@ -147,12 +147,59 @@ async def response(update, context):
         return 1
 
 
+async def scoring(update, context):
+    con = sqlite3.connect('crocodile.db')
+    cur = con.cursor()
+    cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""",
+                (update.effective_user.id,))
+    if cur.fetchone()[0] > 0:
+        cur.execute("""SELECT score FROM rating WHERE userid = (?)""",
+                    (update.effective_user.id,))
+        await update.message.reply_text(f'Сейчас у тебя {cur.fetchone()[0]} баллов')
+    else:
+        cur.execute("""INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)""",
+                    (update.effective_user.id, 0, update.effective_user.username))
+        await update.message.reply_text(f'Сейчас у тебя {0} баллов')
+    a = f'Текущий топ игроков:\n\n'
+    a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top_5_players() if i[0] != ''])
+    a += '\n\nБаллы остальных игроков: 0'
+    await update.message.reply_text(a)
+    con.commit()
+    cur.close()
+
+
+def top_5_players():
+    con = sqlite3.connect('crocodile.db')
+    cur = con.cursor()
+    users = cur.execute(
+        """select username, score from rating where score != '0' order by score desc limit 5""").fetchall()
+    for i in range(5 - len(users)):
+        users.append(('', ''))
+    cur.close()
+    return users
+
+
+def score_updates(id, score):
+    con = sqlite3.connect('crocodile.db')
+    cur = con.cursor()
+    cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""", (id,))
+    if cur.fetchone()[0] > 0:
+        cur.execute("""SELECT score FROM rating WHERE userid = (?)""", (id,))
+        cnt = cur.fetchone()[0] + score
+        cur.execute("""UPDATE rating SET score = (?) WHERE userid = (?)""", (cnt, id,))
+    else:
+        cur.execute("""INSERT INTO rating (userid, score) VALUES (?, ?)""", (id, score))
+    con.commit()
+    cur.close()
+
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("current", current))
+    application.add_handler(CommandHandler("rating", scoring))
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
