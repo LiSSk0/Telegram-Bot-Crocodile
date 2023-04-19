@@ -19,7 +19,7 @@ current_word = ""  # текущее загаданное слово
 is_started = False
 
 # база слов для игры
-with open('data/crocodile_words.txt', 'r', encoding='utf-8') as f:
+with open('crocodile_words.txt', 'r', encoding='utf-8') as f:
     LIST_OF_WORDS = f.read().split('\n')
 
 # кнопки
@@ -130,12 +130,12 @@ async def response(update, context):
     user = update.effective_user
     if current_word in text:
         if user == ved:
-            score_updates(user.id, -3)
+            score_updates(user.id, -3, user.username)
             await update.message.reply_text(
                 f"🌟 Ведущий @{user.username} написал ответ в чат.")
         else:
-            score_updates(ved.id, 1)
-            score_updates(user.id, 2)
+            score_updates(ved.id, 1, ved.username)
+            score_updates(user.id, 2, user.username)
             ved = user
             await update.message.reply_text(
                 f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.")
@@ -149,41 +149,44 @@ async def response(update, context):
 
 
 async def scoring(update, context):
-    con = sqlite3.connect('data/crocodile.db')
-    cur = con.cursor()
-    cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""",
-                (update.effective_user.id,))
-    if cur.fetchone()[0] > 0:
-        cur.execute("""SELECT score FROM rating WHERE userid = (?)""",
+    global is_started
+    
+    if is_started:
+        con = sqlite3.connect('crocodile.db')
+        cur = con.cursor()
+        cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""",
                     (update.effective_user.id,))
-        await update.message.reply_text(f'Сейчас у тебя {cur.fetchone()[0]} баллов')
-    else:
-        cur.execute("""INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)""",
-                    (update.effective_user.id, 0, update.effective_user.username))
-        await update.message.reply_text(f'Сейчас у тебя {0} баллов')
-    top = top_5_players()
-    print(len(top))
-    if len(top) == 0:
-        a = f'Текущее положение игроков:\n\n'
-        a += 'Баллы всех игроков: 0'
-    else:
-        a = f'Текущий топ игроков:\n\n'
-        a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
-        a += '\n\nБаллы остальных игроков: 0'
-    await update.message.reply_text(a)
+        if cur.fetchone()[0] > 0:
+            cur.execute("""SELECT score FROM rating WHERE userid = (?)""",
+                        (update.effective_user.id,))
+            await update.message.reply_text(f'Сейчас у тебя {cur.fetchone()[0]} баллов')
+        else:
+            cur.execute("""INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)""",
+                        (update.effective_user.id, 0, update.effective_user.username))
+            await update.message.reply_text(f'Сейчас у тебя {0} баллов')
+        top = top_5_players()
+        if len(top) == 0:
+            a = f'Текущее положение игроков:\n\n'
+            a += 'Баллы всех игроков: 0'
+        else:
+            a = f'Текущий топ игроков:\n\n'
+            a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
+            a += '\n\nБаллы остальных игроков: 0'
+        await update.message.reply_text(a)
+        con.commit()
+        cur.close()
+
+
+def delete_database():
+    con = sqlite3.connect('crocodile.db')
+    cur = con.cursor()
+    cur.execute("""delete from rating""")
     con.commit()
     cur.close()
 
 
-def delete_database():
-    con = sqlite3.connect('data/crocodile.db')
-    cur = con.cursor()
-    cur.execute("""delete from rating""")
-    cur.close()
-
-
 def top_5_players():
-    con = sqlite3.connect('data/crocodile.db')
+    con = sqlite3.connect('crocodile.db')
     cur = con.cursor()
     n = cur.execute("""SELECT COUNT(*) FROM rating where score != '0'""").fetchone()[0]
     users = cur.execute(
@@ -194,8 +197,8 @@ def top_5_players():
     return users
 
 
-def score_updates(id, score):
-    con = sqlite3.connect('data/crocodile.db')
+def score_updates(id, score, username):
+    con = sqlite3.connect('crocodile.db')
     cur = con.cursor()
     cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""", (id,))
     if cur.fetchone()[0] > 0:
@@ -203,7 +206,7 @@ def score_updates(id, score):
         cnt = cur.fetchone()[0] + score
         cur.execute("""UPDATE rating SET score = (?) WHERE userid = (?)""", (cnt, id,))
     else:
-        cur.execute("""INSERT INTO rating (userid, score) VALUES (?, ?)""", (id, score))
+        cur.execute("""INSERT INTO rating (userid, score, username) VALUES (?, ?)""", (id, score, username))
     con.commit()
     cur.close()
 
@@ -230,6 +233,8 @@ def main():
 
     application.add_handler(conv_handler)
     application.run_polling()
+    delete_database()
+
 
 
 if __name__ == '__main__':
