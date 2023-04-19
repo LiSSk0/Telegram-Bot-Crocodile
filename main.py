@@ -117,6 +117,7 @@ async def stop(update, context):
     if is_started:
         is_started = False
         await update.message.reply_text("⫸ Игра завершена")
+        delete_database()
         return ConversationHandler.END
     else:
         return 1
@@ -160,20 +161,34 @@ async def scoring(update, context):
         cur.execute("""INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)""",
                     (update.effective_user.id, 0, update.effective_user.username))
         await update.message.reply_text(f'Сейчас у тебя {0} баллов')
-    a = f'Текущий топ игроков:\n\n'
-    a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top_5_players() if i[0] != ''])
-    a += '\n\nБаллы остальных игроков: 0'
+    top = top_5_players()
+    print(len(top))
+    if len(top) == 0:
+        a = f'Текущее положение игроков:\n\n'
+        a += 'Баллы всех игроков: 0'
+    else:
+        a = f'Текущий топ игроков:\n\n'
+        a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
+        a += '\n\nБаллы остальных игроков: 0'
     await update.message.reply_text(a)
     con.commit()
+    cur.close()
+
+
+def delete_database():
+    con = sqlite3.connect('crocodile.db')
+    cur = con.cursor()
+    cur.execute("""delete from rating""")
     cur.close()
 
 
 def top_5_players():
     con = sqlite3.connect('crocodile.db')
     cur = con.cursor()
+    n = cur.execute("""SELECT COUNT(*) FROM rating where score != '0'""").fetchone()[0]
     users = cur.execute(
         """select username, score from rating where score != '0' order by score desc limit 5""").fetchall()
-    for i in range(5 - len(users)):
+    for i in range(min(5, n) - len(users)):
         users.append(('', ''))
     cur.close()
     return users
