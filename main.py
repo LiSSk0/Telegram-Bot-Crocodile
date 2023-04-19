@@ -149,7 +149,7 @@ async def response(update, context):
 
 
 async def scoring(update, context):
-    con = sqlite3.connect('crocodile.db')
+    con = sqlite3.connect('data/crocodile.db')
     cur = con.cursor()
     cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""",
                 (update.effective_user.id,))
@@ -176,14 +176,14 @@ async def scoring(update, context):
 
 
 def delete_database():
-    con = sqlite3.connect('crocodile.db')
+    con = sqlite3.connect('data/crocodile.db')
     cur = con.cursor()
     cur.execute("""delete from rating""")
     cur.close()
 
 
 def top_5_players():
-    con = sqlite3.connect('crocodile.db')
+    con = sqlite3.connect('data/crocodile.db')
     cur = con.cursor()
     n = cur.execute("""SELECT COUNT(*) FROM rating where score != '0'""").fetchone()[0]
     users = cur.execute(
@@ -195,7 +195,7 @@ def top_5_players():
 
 
 def score_updates(id, score):
-    con = sqlite3.connect('crocodile.db')
+    con = sqlite3.connect('data/crocodile.db')
     cur = con.cursor()
     cur.execute("""SELECT COUNT(*) FROM rating WHERE userid = (?)""", (id,))
     if cur.fetchone()[0] > 0:
