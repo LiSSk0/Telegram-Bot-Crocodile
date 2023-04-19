@@ -1,6 +1,8 @@
 import logging
-from random import randint
 import sqlite3
+
+from rating_funcs import clean_db, top_5_players, score_updates
+from game_funcs import generate_word, help, rules
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
@@ -12,17 +14,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW = range(2)
+DB_NAME = 'data/crocodile.db'
 BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
 is_started = False
 
-# база слов для игры
-with open('data/crocodile_words.txt', 'r', encoding='utf-8') as f:
-    LIST_OF_WORDS = f.read().split('\n')
-
-# кнопки
+# кнопки для чата
 BUTTONS = [
     [
         InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
@@ -32,20 +31,15 @@ BUTTONS = [
 MARKUP = InlineKeyboardMarkup(BUTTONS)
 
 
-def generate_word():
-    global current_word
-    word_id = randint(0, len(LIST_OF_WORDS) - 1)
-    while LIST_OF_WORDS[word_id].lower() == current_word:
-        word_id = randint(0, len(LIST_OF_WORDS) - 1)
-    current_word = LIST_OF_WORDS[word_id].lower()
-
-
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    global current_word
+
     if is_started:
         query = update.callback_query
         if query.from_user.id == ved.id:
             if current_word == '':
-                generate_word()
+                generated_word = generate_word(current_word)
+                current_word = generated_word
             await query.answer("•Ваше слово: " + current_word)
         else:
             await query.answer(f'•Сейчас ведущий @{ved.username}')
@@ -53,26 +47,17 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    global current_word
+
     if is_started:
         query = update.callback_query
         if query.from_user.id == ved.id:
-            generate_word()
+            generated_word = generate_word(current_word)
+            current_word = generated_word
             await query.answer("•Ваше слово: " + current_word)
         else:
             await query.answer("•Сейчас ведущий @" + ved.username)
         return 1
-
-
-async def help(update, context):
-    await update.message.reply_text("""
-    ⫸ Команды бота:
-    /help - Помощь по боту
-    /rules - Правила игры
-    /start - Запуск игры
-    /stop - Остановка игры
-    /skip - Смена ведущего
-    /rating - Рейтинг по чату
-    """)
 
 
 async def current(update, context):
@@ -80,20 +65,6 @@ async def current(update, context):
         await update.message.reply_text(f'💬 @{ved.username} объясняет слово.',
                                         reply_markup=MARKUP)
         return 1
-
-
-async def rules(update, context):
-    await update.message.reply_text("""
-    ⫸ Правила игры в крокодила:
-    • Есть ведущий и игроки, которые отгадывают слова.
-    • После ввода команды /start задача ведущего — нажать кнопку "Посмотреть слово" и объяснить его игрокам, 
-    не используя однокоренные слова. Если ведущий не в силах объяснить загаданное слово, его можно сменить, нажав
-    кнопку "Следующее слово".
-    • Задача игроков — отгадать загаданное слово, для этого нужно написать догадку в чат,
-    по одному слову в сообщении.
-    • За каждое отгаданное слово игрок получает 2 балла, а тот, кто объяснял - 1 балл.
-    • В случае, если нечестный ведущий пишет слово-ответ в чат - с него снимаются 3 балла рейтинга.
-    """)
 
 
 async def start(update, context):
@@ -116,7 +87,7 @@ async def stop(update, context):
     if is_started:
         is_started = False
         await update.message.reply_text("⫸ Игра завершена")
-        delete_database()
+        clean_db(DB_NAME)
         return ConversationHandler.END
     else:
         return 1
@@ -131,16 +102,18 @@ async def response(update, context):
         if user == ved:
             await update.message.reply_text(
                 f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
-            score_updates(user.id, -3, user.username)
+            score_updates(DB_NAME, user.id, -3, user.username)
         else:
             await update.message.reply_text(
                 f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
                 f"@{user.username} +2 балла.\n@{ved.username} +1 балл.")
-            score_updates(ved.id, 1, ved.username)
-            score_updates(user.id, 2, user.username)
+            score_updates(DB_NAME, ved.id, 1, ved.username)
+            score_updates(DB_NAME, user.id, 2, user.username)
             ved = user
 
-        generate_word()
+        generated_word = generate_word(current_word)
+        current_word = generated_word
+
         await update.message.reply_text(
             f'🌟 Играем дальше, @{user.username} ведущий.',
             reply_markup=MARKUP)
@@ -149,57 +122,28 @@ async def response(update, context):
 
 
 async def scoring(update, context):
-    con = sqlite3.connect('data/crocodile.db')
+    con = sqlite3.connect(DB_NAME)
     cur = con.cursor()
     cur.execute("SELECT COUNT(*) FROM rating WHERE userid = (?)",
                 (update.effective_user.id,))
+
     if cur.fetchone()[0] > 0:
         cur.execute("SELECT score FROM rating WHERE userid = (?)",
                     (update.effective_user.id,))
-        await update.message.reply_text(f'Сейчас у тебя {cur.fetchone()[0]} баллов')
+        await update.message.reply_text(f'•У тебя {cur.fetchone()[0]} баллов')
     else:
         cur.execute("INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)",
                     (update.effective_user.id, 0, update.effective_user.username))
-        await update.message.reply_text(f'Сейчас у тебя 0 баллов')
-    top = top_5_players()
+        await update.message.reply_text(f'•У тебя 0 баллов')
+
+    top = top_5_players(DB_NAME)
     if len(top) == 0:
         a = 'Рейтинг пуст.'
     else:
         a = f'Текущий топ игроков:\n\n'
         a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
     await update.message.reply_text(a)
-    con.commit()
-    cur.close()
 
-
-def delete_database():
-    con = sqlite3.connect('data/crocodile.db')
-    cur = con.cursor()
-    cur.execute("delete from rating")
-    cur.close()
-
-
-def top_5_players():
-    con = sqlite3.connect('data/crocodile.db')
-    cur = con.cursor()
-    n = cur.execute("SELECT COUNT(*) FROM rating where score != '0'").fetchone()[0]
-    users = cur.execute("select username, score from rating where score != '0' order by score desc limit 5").fetchall()
-    for i in range(min(5, n) - len(users)):
-        users.append(('', ''))
-    cur.close()
-    return users
-
-
-def score_updates(id, score, username):
-    con = sqlite3.connect('data/crocodile.db')
-    cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM rating WHERE userid = (?)", (id,))
-    if cur.fetchone()[0] > 0:
-        cur.execute("SELECT score FROM rating WHERE userid = (?)", (id,))
-        cnt = cur.fetchone()[0] + score
-        cur.execute("UPDATE rating SET score = (?) WHERE userid = (?)", (cnt, id,))
-    else:
-        cur.execute("INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)", (id, score, username))
     con.commit()
     cur.close()
 
