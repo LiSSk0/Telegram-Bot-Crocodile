@@ -4,7 +4,7 @@ import sqlite3
 from rating_funcs import clean_db, top_5_players, score_updates
 from game_funcs import generate_word, help, rules
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Chat
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
     ConversationHandler, ContextTypes, CallbackQueryHandler
 
@@ -13,9 +13,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+CHAT_ID = "" # id чата
 CHECK, NEW = range(2)
 DB_NAME = 'data/crocodile.db'
-BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
+BOT_TOKEN = ""
 
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
@@ -85,7 +86,12 @@ async def play(update, context):
                                             reply_markup=MARKUP)
         active_players.append(user.id)
 
-    return 1
+        return 1
+
+
+async def start(update, context):
+    global CHAT_ID
+    CHAT_ID = update.message.chat_id
 
 
 async def end(update, context):
@@ -100,9 +106,11 @@ async def end(update, context):
     # else:
     #    await update.message.reply_text('•Вы не в игре.')
 
+    return ConversationHandler.END
+
 
 async def response(update, context):
-    global current_word, ved
+    global current_word, ved, CHAT_ID
 
     text = update.message.text.lower()
     user = update.effective_user
@@ -110,13 +118,13 @@ async def response(update, context):
         if user == ved:
             await update.message.reply_text(
                 f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
-            score_updates(DB_NAME, user.id, -3, user.username)
+            score_updates(DB_NAME, user.id, -3, user.username, CHAT_ID)
         else:
             await update.message.reply_text(
                 f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
                 f"@{user.username} +2 балла.\n@{ved.username} +1 балл.")
-            score_updates(DB_NAME, ved.id, 1, ved.username)
-            score_updates(DB_NAME, user.id, 2, user.username)
+            score_updates(DB_NAME, ved.id, 1, ved.username, CHAT_ID)
+            score_updates(DB_NAME, user.id, 2, user.username, CHAT_ID)
             ved = user
 
         generated_word = generate_word(current_word)
@@ -132,16 +140,16 @@ async def response(update, context):
 async def scoring(update, context):
     con = sqlite3.connect(DB_NAME)
     cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM rating WHERE userid = (?)",
-                (update.effective_user.id,))
+    cur.execute("SELECT COUNT(*) FROM rating WHERE (userid = (?) and chat_id = (?))",
+                (update.effective_user.id, CHAT_ID))
 
     if cur.fetchone()[0] > 0:
         cur.execute("SELECT score FROM rating WHERE userid = (?)",
                     (update.effective_user.id,))
         await update.message.reply_text(f'•У тебя {cur.fetchone()[0]} баллов')
     else:
-        cur.execute("INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)",
-                    (update.effective_user.id, 0, update.effective_user.username))
+        cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)",
+                    (update.effective_user.id, 0, update.effective_user.username, CHAT_ID))
         await update.message.reply_text(f'•У тебя 0 баллов')
 
     top = top_5_players(DB_NAME)
@@ -154,6 +162,7 @@ async def scoring(update, context):
 
     con.commit()
     cur.close()
+
 
 #
 # def start(update):
@@ -169,6 +178,8 @@ def main():
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("current", current))
     application.add_handler(CommandHandler("rating", scoring))
+    application.add_handler(CommandHandler("start", start))
+
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('play', play)],

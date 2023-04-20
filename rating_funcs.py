@@ -19,15 +19,15 @@ def top_5_players(db_name):
     return users
 
 
-def score_updates(db_name, id, score, username):
+def score_updates(db_name, id, score, username, chat_id):
     con = sqlite3.connect(db_name)
     cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM rating WHERE userid = (?)", (id,))
+    cur.execute("SELECT COUNT(*) FROM rating WHERE (userid = (?) and chat_id = (?))", (id, chat_id, ))
     if cur.fetchone()[0] > 0:
-        cur.execute("SELECT score FROM rating WHERE userid = (?)", (id,))
+        cur.execute("SELECT score FROM rating WHERE (userid = (?) and chat_id = (?))", (id, chat_id, ))
         cnt = cur.fetchone()[0] + score
-        cur.execute("UPDATE rating SET score = (?) WHERE userid = (?)", (cnt, id,))
+        cur.execute("UPDATE rating SET score = (?) WHERE (userid = (?) and chat_id = (?))", (cnt, id, chat_id, ))
     else:
-        cur.execute("INSERT INTO rating (userid, score, username) VALUES (?, ?, ?)", (id, score, username))
+        cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)", (id, score, username, chat_id))
     con.commit()
     cur.close()
