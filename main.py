@@ -20,6 +20,7 @@ BOT_TOKEN = "1813496348:AAFnQmBuU5OC7jcbOyylcQIgAioZtVguIKY"
 ved = 0  # id ведущего
 current_word = ""  # текущее загаданное слово
 is_started = False
+active_players = []
 
 # кнопки для чата
 BUTTONS = [
@@ -67,30 +68,37 @@ async def current(update, context):
         return 1
 
 
-async def start(update, context):
+async def play(update, context):
     global ved, is_started
 
-    if not is_started:
-        is_started = True
-        ved = update.effective_user
+    user = update.effective_user
 
-        await update.message.reply_text('⫸ Игра началась ⫷')
-        await update.message.reply_text(f'💬 @{ved.username} объясняет слово.',
-                                        reply_markup=MARKUP)
+    if user.id in active_players:
+        await update.message.reply_text('•Вы уже в игре.')
+    else:
+        await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
+
+        if len(active_players) == 0:
+            is_started = True  # ???
+            ved = update.effective_user
+            await update.message.reply_text(f'💬 @{ved.username} объясняет слово.',
+                                            reply_markup=MARKUP)
+        active_players.append(user.id)
+
     return 1
 
 
-async def stop(update, context):
-    global current_word, is_started
+async def end(update, context):
+    # попадает только если user уже вступал в игру по команде /play,
+    # поэтому проверка нахождения в игре не требуется
 
-    current_word = ""
-    if is_started:
-        is_started = False
-        await update.message.reply_text("⫸ Игра завершена")
-        clean_db(DB_NAME)
-        return ConversationHandler.END
-    else:
-        return 1
+    user = update.effective_user
+
+    # if user.id in active_players:
+    await update.message.reply_text(f'⫸ @{user.username} вышел из игры. ⫷')
+    active_players.remove(user.id)
+    # else:
+    #    await update.message.reply_text('•Вы не в игре.')
 
 
 async def response(update, context):
@@ -147,6 +155,12 @@ async def scoring(update, context):
     con.commit()
     cur.close()
 
+#
+# def start(update):
+#     db_create()
+#     if is_started:
+#         "бб игра уже есть"
+
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
@@ -157,7 +171,7 @@ def main():
     application.add_handler(CommandHandler("rating", scoring))
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('play', play)],
 
         states={
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, response),
@@ -165,7 +179,7 @@ def main():
                 CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")]
         },
 
-        fallbacks=[CommandHandler('stop', stop)]
+        fallbacks=[CommandHandler('end', end)]
     )
 
     application.add_handler(conv_handler)
