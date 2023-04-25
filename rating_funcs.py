@@ -7,6 +7,13 @@ def clean_db(db_name):
     cur.execute("delete from rating")
     cur.close()
 
+def get_user_info(db_name, id, chat_id):
+    con = sqlite3.connect(db_name)
+    cur = con.cursor()
+    n = cur.execute("SELECT * FROM rating WHERE (userid = (?) and chat_id = (?))", (id, chat_id, )).fetchall()[0]
+    cur.close()
+    return n
+
 
 def top_5_players(db_name):
     con = sqlite3.connect(db_name)
@@ -31,3 +38,4 @@ def score_updates(db_name, id, score, username, chat_id):
         cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)", (id, score, username, chat_id))
     con.commit()
     cur.close()
+
