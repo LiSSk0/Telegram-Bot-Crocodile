@@ -198,13 +198,18 @@ async def scoring(update, context):
 
 
 async def start(update, context):
-    chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
+    if chat_type in ['group', 'supergroup']:
+        chat_id = update.message.chat_id
 
-    if get_info_started(chat_id):
-        await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
+        if get_info_started(chat_id):
+            await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
+        else:
+            create_chat(chat_id, True, '')
+            await update.message.reply_text("•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
     else:
-        create_chat(chat_id, True, '')
-        await update.message.reply_text("•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
+        await update.message.reply_text(
+            "👽 Добавьте Крокодила в группу и начинайте игру 👽")
 
 
 async def stop(update, context):
