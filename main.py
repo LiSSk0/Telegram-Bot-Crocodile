@@ -42,19 +42,23 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
     is_started = get_info_started(chat_id)
+    ved = get_info_ved(chat_id)
     if is_started:
-        current_word = get_info_word(chat_id)
-        ved = get_info_ved(chat_id)
-        ved_info = get_user_info(DB_NAME, ved, chat_id)
-        if query.from_user.id == ved_info[0]:
-            if current_word == '':
-                current_word = generate_word(current_word)
-                change_word(chat_id, current_word)
-            await query.answer("•Ваше слово: " + current_word)
+        if ved != '':
+            current_word = get_info_word(chat_id)
+            ved_info = get_user_info(DB_NAME, ved, chat_id)
+            if query.from_user.id == ved_info[0]:
+                if current_word == '':
+                    current_word = generate_word(current_word)
+                    change_word(chat_id, current_word)
+                await query.answer("•Ваше слово: " + current_word)
+            else:
+                print(query.from_user.id, ved_info[4])
+                await query.answer(f'•Сейчас ведущий {ved_info[2]}')
+            return 1
         else:
-            print(query.from_user.id, ved_info[4])
-            await query.answer(f'•Сейчас ведущий {ved_info[2]}')
-        return 1
+            await update.message.reply_text(
+                f'⚠ Для игры нужен ведущий.')
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
@@ -63,18 +67,21 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
     is_started = get_info_started(chat_id)
-
     if is_started:
-        current_word = get_info_word(chat_id)
         ved = get_info_ved(chat_id)
-        ved_info = get_user_info(DB_NAME, ved, chat_id)
-        if query.from_user.id == ved_info[0]:
-            current_word = generate_word(current_word)
-            change_word(chat_id, current_word)
-            await query.answer("•Ваше слово: " + current_word)
+        if ved != '':
+            current_word = get_info_word(chat_id)
+            ved_info = get_user_info(DB_NAME, ved, chat_id)
+            if query.from_user.id == ved_info[0]:
+                current_word = generate_word(current_word)
+                change_word(chat_id, current_word)
+                await query.answer("•Ваше слово: " + current_word)
+            else:
+                await query.answer("•Сейчас ведущий " + ved_info[2])
+            return 1
         else:
-            await query.answer("•Сейчас ведущий " + ved_info[2])
-        return 1
+            await query.message.reply_text(
+                f'⚠ Для игры нужен ведущий.')
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
@@ -84,13 +91,16 @@ async def current(update, context):
 
     is_started = get_info_started(chat_id)
     ved = get_info_ved(chat_id)
-    ved_info = get_user_info(DB_NAME, ved, chat_id)
-
-
     if is_started:
-        await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
-                                        reply_markup=MARKUP)
-        return 1
+        if ved != '':
+            ved_info = get_user_info(DB_NAME, ved, chat_id)
+
+            await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
+                                            reply_markup=MARKUP)
+            return 1
+        else:
+            await update.message.reply_text(
+                f'⚠ Для игры нужен ведущий.')
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
@@ -187,7 +197,9 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                         reply_markup=MARKUP)
         return 1
     else:
-        await query.answer(f"Ведущий - {query.from_user.username}")
+        ved = get_info_ved(chat_id)
+        ved_info = get_user_info(DB_NAME, ved, chat_id)
+        await query.answer(f"Ведущий - {ved_info[2]}")
 
 
 async def skip(update, context):
@@ -209,8 +221,8 @@ async def scoring(update, context):
                     (update.effective_user.id, chat_id))
 
         if cur.fetchone()[0] > 0:
-            cur.execute("SELECT score FROM rating WHERE userid = (?)",
-                        (update.effective_user.id,))
+            cur.execute("SELECT score FROM rating WHERE (userid = (?) and chat_id = (?))",
+                        (update.effective_user.id, chat_id))
             await update.message.reply_text(f'•У тебя {cur.fetchone()[0]} баллов')
         else:
             cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)",
