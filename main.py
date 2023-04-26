@@ -1,6 +1,5 @@
 import logging
 import sqlite3
-from random import randint
 from orm_stuff import create_chat, get_info_started, get_info_ved, change_started, \
     change_ved, change_word, get_info_word
 
@@ -101,6 +100,7 @@ async def play(update, context):
             await update.message.reply_text('•Вы уже в игре.')
         else:
             await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
+            await context.bot.sendPhoto(chat_id, (open("data/croco_pic.png", "rb")))
 
             if chat_id not in active_players:
                 score_updates(DB_NAME, user.id, 1, user.username, chat_id)
