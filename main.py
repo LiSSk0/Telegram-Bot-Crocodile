@@ -6,7 +6,7 @@ from orm_stuff import create_chat, get_info_started, get_info_ved, change_starte
 from rating_funcs import clean_db, top_5_players, score_updates, get_user_info
 from game_funcs import generate_word, help, rules
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Chat
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
     ConversationHandler, ContextTypes, CallbackQueryHandler
 
@@ -15,11 +15,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CHECK, NEW = 0, 1
+CHECK, NEW, CHANGE = 0, 1, 2
 DB_NAME = 'data/crocodile.db'
 BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
 
-#chat_id = ""  # id чата
 active_players = {}
 
 # кнопки для чата
@@ -30,6 +29,13 @@ BUTTONS = [
     [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
 ]
 MARKUP = InlineKeyboardMarkup(BUTTONS)
+
+BUTTON_SKIP = [
+    [
+        InlineKeyboardButton("Я ВЕДУЩИЙ!", callback_data=str(CHANGE))
+    ]]
+MARKUP_SKIP = InlineKeyboardMarkup(BUTTON_SKIP)
+
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -100,7 +106,6 @@ async def play(update, context):
             await update.message.reply_text('•Вы уже в игре.')
         else:
             await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
-            await context.bot.sendPhoto(chat_id, (open("data/croco_pic.png", "rb")))
 
             if chat_id not in active_players:
                 score_updates(DB_NAME, user.id, 1, user.username, chat_id)
@@ -135,34 +140,63 @@ async def response(update, context):
     ved = get_info_ved(chat_id)
 
     if get_info_started(chat_id):
-        text = update.message.text.lower()
-        user = update.effective_user
-        ved_info = get_user_info(DB_NAME, ved, chat_id)
-        if current_word in text:
-            if user.id == ved_info[0]:
-                await update.message.reply_text(
-                    f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
-                score_updates(DB_NAME, user.id, -3, user.username, chat_id)
-
-            else:
-                await update.message.reply_text(
-                    f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
-                    f"@{user.username} +2 балла.\n@{ved_info[2]} +1 балл.")
-                score_updates(DB_NAME, ved_info[0], 1, ved_info[2], chat_id)
-                score_updates(DB_NAME, user.id, 2, user.username, chat_id)
-
-                change_ved(chat_id, user.id)
-
-            generated_word = generate_word(current_word)
-            change_word(chat_id, generated_word)
-
+        if ved == '':
             await update.message.reply_text(
-                f'🌟 Играем дальше, @{user.username} ведущий.',
-                reply_markup=MARKUP)
+                f'⚠ Для игры нужен ведущий.')
+        else:
+            text = update.message.text.lower()
+            user = update.effective_user
+            ved_info = get_user_info(DB_NAME, ved, chat_id)
+            if current_word in text:
+                if user.id == ved_info[0]:
+                    await update.message.reply_text(
+                        f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
+                    score_updates(DB_NAME, user.id, -3, user.username, chat_id)
 
-            return 1
+                else:
+                    await update.message.reply_text(
+                        f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
+                        f"@{user.username} +2 балла.\n@{ved_info[2]} +1 балл.")
+                    score_updates(DB_NAME, ved_info[0], 1, ved_info[2], chat_id)
+                    score_updates(DB_NAME, user.id, 2, user.username, chat_id)
+
+                    change_ved(chat_id, user.id)
+
+                generated_word = generate_word(current_word)
+                change_word(chat_id, generated_word)
+
+                await update.message.reply_text(
+                    f'🌟 Играем дальше, @{user.username} ведущий.',
+                    reply_markup=MARKUP)
+
+                return 1
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
+
+async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    is_started = get_info_started(chat_id)
+    if is_started and get_info_ved(chat_id) == '':
+        change_ved(chat_id, query.from_user.id)
+        current_word = get_info_word(chat_id)
+        current_word = generate_word(current_word)
+        change_word(chat_id, current_word)
+        await query.answer(f"Новый ведущий - {query.from_user.username}")
+        await query.message.reply_text(f'💬 @{query.from_user.username} объясняет слово.',
+                                        reply_markup=MARKUP)
+        return 1
+    else:
+        await query.answer(f"Ведущий - {query.from_user.username}")
+
+
+async def skip(update, context):
+    chat_id = update.message.chat_id
+    if get_info_started(chat_id):
+        change_ved(chat_id, '')
+        await update.message.reply_text(
+            f'🚨 Смена ведущего:',
+            reply_markup=MARKUP_SKIP)
 
 
 async def scoring(update, context):
@@ -207,13 +241,16 @@ async def start(update, context):
         else:
             create_chat(chat_id, True, '')
             await update.message.reply_text("•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
+            await context.bot.sendPhoto(chat_id, (open("data/croco_pic_start.jpg", "rb")))
+
     else:
         await update.message.reply_text(
             "👽 Добавьте Крокодила в группу и начинайте игру 👽")
 
 
 async def stop(update, context):
-    global chat_id
+    chat_id = update.message.chat_id
+
     if get_info_started(chat_id):
         change_started(chat_id, False)
         # change_word(chat_id, "".join([str(randint(0, 10)) for _ in range(25)]))  # создает рандомный ключ
@@ -229,6 +266,8 @@ def main():
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("current", current))
     application.add_handler(CommandHandler("rating", scoring))
+    application.add_handler(CommandHandler("skip", skip))
+
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stop", stop))
@@ -239,7 +278,9 @@ def main():
         states={
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, response),
                 CallbackQueryHandler(new_word, pattern="^" + str(NEW) + "$"),
-                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$")]
+                CallbackQueryHandler(check_word, pattern="^" + str(CHECK) + "$"),
+                CallbackQueryHandler(new_ved, pattern="^" + str(CHANGE) + "$")
+                ]
         },
 
         fallbacks=[CommandHandler('end', end), CommandHandler('stop', stop)]
