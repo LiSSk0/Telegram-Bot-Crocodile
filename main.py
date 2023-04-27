@@ -1,9 +1,10 @@
 import logging
 import sqlite3
+import sys
+
 from orm_stuff import create_chat, get_info_started, get_info_ved, change_started, \
     change_ved, change_word, get_info_word
-
-from rating_funcs import clean_db, top_5_players, score_updates, get_user_info
+from rating_funcs import top_5_players, score_updates, get_user_info
 from game_funcs import generate_word, help, rules
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -17,9 +18,14 @@ logger = logging.getLogger(__name__)
 
 CHECK, NEW, CHANGE = 0, 1, 2
 DB_NAME = 'data/crocodile.db'
-BOT_TOKEN = "6214547917:AAEqMsPS7rEhzuH4xzugdkHiFYGY1v_LzDs"
+try:
+    with open('data/bot_token.txt', 'r', encoding='utf-8') as f:
+        BOT_TOKEN = f.readline().strip()
+except Exception:
+    print("Не найден токен бота по адресу data/bot_token.txt")
+    sys.exit()
 
-active_players = {}
+active_players = {}  # активные игроки текущего сеанса
 
 # кнопки для чата
 BUTTONS = [
@@ -29,13 +35,11 @@ BUTTONS = [
     [InlineKeyboardButton("Новое слово", callback_data=str(NEW))]
 ]
 MARKUP = InlineKeyboardMarkup(BUTTONS)
-
 BUTTON_SKIP = [
     [
         InlineKeyboardButton("Я ВЕДУЩИЙ!", callback_data=str(CHANGE))
     ]]
 MARKUP_SKIP = InlineKeyboardMarkup(BUTTON_SKIP)
-
 
 
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -193,6 +197,7 @@ async def response(update, context):
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
+
 async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
@@ -233,7 +238,7 @@ async def scoring(update, context):
         if cur.fetchone()[0] > 0:
             cur.execute("SELECT score FROM rating WHERE (userid = (?) and chat_id = (?))",
                         (update.effective_user.id, chat_id))
-            await update.message.reply_text(f'•У тебя {cur.fetchone()[0]} баллов')
+            await update.message.reply_text(f'•Твои баллы: {cur.fetchone()[0]}')
         else:
             cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)",
                         (update.effective_user.id, 0, update.effective_user.username, chat_id))
@@ -289,7 +294,6 @@ def main():
     application.add_handler(CommandHandler("current", current))
     application.add_handler(CommandHandler("rating", scoring))
     application.add_handler(CommandHandler("skip", skip))
-
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stop", stop))
