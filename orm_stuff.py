@@ -28,40 +28,36 @@ def create_chat(c_id, s, w):
 def change_started(id, s):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        chat.is_started = s
+    db_sess.query(Chats).get(id).is_started = s
     db_sess.commit()
 
 
 def change_ved(id, v):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        chat.ved = v
+    db_sess.query(Chats).get(id).ved = v
     db_sess.commit()
 
 
 def change_word(id, w):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        chat.current_word = w
+    db_sess.query(Chats).get(id).current_word = w
     db_sess.commit()
 
 
 def get_info_started(id):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        return chat.is_started
+    return db_sess.query(Chats).get(id).is_started
+
 
 
 def get_info_ved(id):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
     try:
-        for chat in db_sess.query(Chats).filter(Chats.id == id):
-            return chat.ved
+        return db_sess.query(Chats).get(id).ved
     except IndexError:
         return 0
 
@@ -69,5 +65,4 @@ def get_info_ved(id):
 def get_info_word(id):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        return chat.current_word
+    return db_sess.query(Chats).get(id).current_word
