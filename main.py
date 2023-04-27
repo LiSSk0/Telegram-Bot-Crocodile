@@ -171,13 +171,23 @@ async def response(update, context):
             text = update.message.text.lower()
             user = update.effective_user
             ved_info = get_user_info(DB_NAME, ved, chat_id)
-            if current_word in text:
-                if user.id == ved_info[0]:
+
+            if user.id == ved_info[0]:
+                if current_word in text:
                     await update.message.reply_text(
                         f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
                     score_updates(DB_NAME, user.id, -3, user.username, chat_id)
 
-                else:
+                    generated_word = generate_word(current_word)
+                    change_word(chat_id, generated_word)
+
+                    await update.message.reply_text(
+                        f'🌟 Играем дальше, @{user.username} ведущий.',
+                        reply_markup=MARKUP)
+
+                    return 1
+            else:
+                if current_word == text:
                     await update.message.reply_text(
                         f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
                         f"@{user.username} +2 балла.\n@{ved_info[2]} +1 балл.")
@@ -186,14 +196,14 @@ async def response(update, context):
 
                     change_ved(chat_id, user.id)
 
-                generated_word = generate_word(current_word)
-                change_word(chat_id, generated_word)
+                    generated_word = generate_word(current_word)
+                    change_word(chat_id, generated_word)
 
-                await update.message.reply_text(
-                    f'🌟 Играем дальше, @{user.username} ведущий.',
-                    reply_markup=MARKUP)
+                    await update.message.reply_text(
+                        f'🌟 Играем дальше, @{user.username} ведущий.',
+                        reply_markup=MARKUP)
 
-                return 1
+                    return 1
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
@@ -209,7 +219,7 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         change_word(chat_id, current_word)
         await query.answer(f"Новый ведущий - {query.from_user.username}")
         await query.message.reply_text(f'💬 @{query.from_user.username} объясняет слово.',
-                                        reply_markup=MARKUP)
+                                       reply_markup=MARKUP)
         return 1
     else:
         ved = get_info_ved(chat_id)
