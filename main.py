@@ -45,17 +45,20 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ved = get_info_ved(chat_id)
     if is_started:
         if ved != '':
-            current_word = get_info_word(chat_id)
-            ved_info = get_user_info(DB_NAME, ved, chat_id)
-            if query.from_user.id == ved_info[0]:
-                if current_word == '':
-                    current_word = generate_word(current_word)
-                    change_word(chat_id, current_word)
-                await query.answer("•Ваше слово: " + current_word)
-            else:
-                print(query.from_user.id, ved_info[4])
-                await query.answer(f'•Сейчас ведущий {ved_info[2]}')
-            return 1
+            try:
+                current_word = get_info_word(chat_id)
+                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                if query.from_user.id == ved_info[0]:
+                    if current_word == '':
+                        current_word = generate_word(current_word)
+                        change_word(chat_id, current_word)
+                    await query.answer("•Ваше слово: " + current_word)
+                else:
+                    await query.answer(f'•Сейчас ведущий {ved_info[2]}')
+                return 1
+            except IndexError:
+                await query.message.reply_text(
+                    f'⚠ {query.from_user.username} не в игре.')
         else:
             await update.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -71,14 +74,18 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         ved = get_info_ved(chat_id)
         if ved != '':
             current_word = get_info_word(chat_id)
-            ved_info = get_user_info(DB_NAME, ved, chat_id)
-            if query.from_user.id == ved_info[0]:
-                current_word = generate_word(current_word)
-                change_word(chat_id, current_word)
-                await query.answer("•Ваше слово: " + current_word)
-            else:
-                await query.answer("•Сейчас ведущий " + ved_info[2])
-            return 1
+            try:
+                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                if query.from_user.id == ved_info[0]:
+                    current_word = generate_word(current_word)
+                    change_word(chat_id, current_word)
+                    await query.answer("•Ваше слово: " + current_word)
+                else:
+                    await query.answer("•Сейчас ведущий " + ved_info[2])
+                return 1
+            except IndexError:
+                await query.message.reply_text(
+                    f'⚠ {query.from_user.username} не в игре.')
         else:
             await query.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -93,11 +100,14 @@ async def current(update, context):
     ved = get_info_ved(chat_id)
     if is_started:
         if ved != '':
-            ved_info = get_user_info(DB_NAME, ved, chat_id)
+            try:
+                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
+                                                reply_markup=MARKUP)
+                return 1
+            except IndexError:
+                await update.message.reply_text(f'⚠ {update.effective_user} не в игре.')
 
-            await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
-                                            reply_markup=MARKUP)
-            return 1
         else:
             await update.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
