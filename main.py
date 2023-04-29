@@ -2,8 +2,8 @@ import logging
 import sqlite3
 import sys
 
-from orm_stuff import create_chat, get_info_started, get_info_ved, change_started, \
-    change_ved, change_word, get_info_word
+from orm_stuff import create_chat, change_started, \
+    change_ved, change_word, get_info
 from rating_funcs import top_5_players, score_updates, get_user_info
 from game_funcs import generate_word, help, rules
 
@@ -45,12 +45,10 @@ MARKUP_SKIP = InlineKeyboardMarkup(BUTTON_SKIP)
 async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
-    is_started = get_info_started(chat_id)
-    ved = get_info_ved(chat_id)
+    is_started, ved, current_word = get_info(chat_id)
     if is_started:
         if ved != '':
             try:
-                current_word = get_info_word(chat_id)
                 ved_info = get_user_info(DB_NAME, ved, chat_id)
                 if query.from_user.id == ved_info[0]:
                     if current_word == '':
@@ -73,11 +71,9 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
-    is_started = get_info_started(chat_id)
+    is_started, ved, current_word = get_info(chat_id)
     if is_started:
-        ved = get_info_ved(chat_id)
         if ved != '':
-            current_word = get_info_word(chat_id)
             try:
                 ved_info = get_user_info(DB_NAME, ved, chat_id)
                 if query.from_user.id == ved_info[0]:
@@ -100,8 +96,7 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def current(update, context):
     chat_id = update.message.chat_id
 
-    is_started = get_info_started(chat_id)
-    ved = get_info_ved(chat_id)
+    is_started, ved, current_word = get_info(chat_id)
     if is_started:
         if ved != '':
             try:
@@ -121,11 +116,10 @@ async def current(update, context):
 
 async def play(update, context):
     chat_id = update.message.chat_id
-    is_started = get_info_started(chat_id)
+    is_started, ved, current_word = get_info(chat_id)
 
     if is_started:
         user = update.effective_user
-
         if user.id in active_players:
             await update.message.reply_text('•Вы уже в игре.')
         else:
@@ -160,10 +154,9 @@ async def end(update, context):
 
 async def response(update, context):
     chat_id = update.message.chat_id
-    current_word = get_info_word(chat_id)
-    ved = get_info_ved(chat_id)
+    is_started, ved, current_word = get_info(chat_id)
 
-    if get_info_started(chat_id):
+    if is_started:
         if ved == '':
             await update.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -211,10 +204,9 @@ async def response(update, context):
 async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
-    is_started = get_info_started(chat_id)
-    if is_started and get_info_ved(chat_id) == '':
+    is_started, ved, current_word = get_info(chat_id)
+    if is_started and ved == '':
         change_ved(chat_id, query.from_user.id)
-        current_word = get_info_word(chat_id)
         current_word = generate_word(current_word)
         change_word(chat_id, current_word)
         await query.answer(f"Новый ведущий - {query.from_user.username}")
@@ -222,14 +214,14 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                        reply_markup=MARKUP)
         return 1
     else:
-        ved = get_info_ved(chat_id)
         ved_info = get_user_info(DB_NAME, ved, chat_id)
         await query.answer(f"Ведущий - {ved_info[2]}")
 
 
 async def skip(update, context):
     chat_id = update.message.chat_id
-    if get_info_started(chat_id):
+    is_started, ved, current_word = get_info(chat_id)
+    if is_started:
         change_ved(chat_id, '')
         await update.message.reply_text(
             f'🚨 Смена ведущего:',
@@ -238,8 +230,9 @@ async def skip(update, context):
 
 async def scoring(update, context):
     chat_id = update.message.chat_id
+    is_started, ved, current_word = get_info(chat_id)
 
-    if get_info_started(chat_id):
+    if is_started:
         con = sqlite3.connect(DB_NAME)
         cur = con.cursor()
         cur.execute("SELECT COUNT(*) FROM rating WHERE (userid = (?) and chat_id = (?))",
@@ -272,8 +265,13 @@ async def start(update, context):
     chat_type = update.message.chat.type
     if chat_type in ['group', 'supergroup']:
         chat_id = update.message.chat_id
+        try:
+            is_started, ved, current_word = get_info(chat_id)
+        except TypeError:
+            is_started = False
 
-        if get_info_started(chat_id):
+
+        if is_started:
             await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
         else:
             create_chat(chat_id, True, '')
@@ -287,8 +285,9 @@ async def start(update, context):
 
 async def stop(update, context):
     chat_id = update.message.chat_id
+    is_started, ved, current_word = get_info(chat_id)
 
-    if get_info_started(chat_id):
+    if is_started:
         change_started(chat_id, False)
         # change_word(chat_id, "".join([str(randint(0, 10)) for _ in range(25)]))  # создает рандомный ключ
         await update.message.reply_text("•Бот успешно отключён. Для выхода из игры отправьте /end")
