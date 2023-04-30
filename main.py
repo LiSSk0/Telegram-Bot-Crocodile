@@ -247,7 +247,7 @@ async def scoring(update, context):
                         (update.effective_user.id, 0, update.effective_user.username, chat_id))
             await update.message.reply_text(f'•У тебя 0 баллов')
 
-        top = top_5_players(DB_NAME)
+        top = top_5_players(DB_NAME, chat_id)
         if len(top) == 0:
             a = '•Рейтинг пуст.'
         else:

@@ -15,11 +15,11 @@ def get_user_info(db_name, id, chat_id):
     return n
 
 
-def top_5_players(db_name):
+def top_5_players(db_name, chat_id):
     con = sqlite3.connect(db_name)
     cur = con.cursor()
-    n = cur.execute("SELECT COUNT(*) FROM rating where score != '0'").fetchone()[0]
-    users = cur.execute("select username, score from rating where score != '0' order by score desc limit 5").fetchall()
+    n = cur.execute("SELECT COUNT(*) FROM rating where (score != '0' and chat_id == (?))", (chat_id, )).fetchone()[0]
+    users = cur.execute("select username, score from rating where (score != '0' and chat_id == (?)) order by score desc limit 5", (chat_id, )).fetchall()
     for i in range(min(5, n) - len(users)):
         users.append(('', ''))
     cur.close()
