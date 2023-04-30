@@ -19,6 +19,7 @@ def create_chat(c_id, s, w):
         chat.ved = ''
         chat.is_started = s
         chat.current_word = w
+        chat.players = ''
         db_sess.add(chat)
     else:
         chat.is_started = s
@@ -45,10 +46,10 @@ def score_updates(id, score, username, chat_id):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
     cnt = False
-    for user in db_sess.query(Rating).filter(Rating.user_id == id and Rating.chat_id == chat_id):
+    for user in db_sess.query(Rating).filter(Rating.chat_id == chat_id and Rating.user_id == id):
         user.score += score
         cnt = True
-    if cnt == False:
+    if not cnt:
         create_rating(id, score, username, chat_id)
     db_sess.commit()
 
@@ -89,8 +90,8 @@ def get_info(id):
     try:
         for chat in db_sess.query(Chats).filter(Chats.id == id):
             return [chat.is_started, chat.ved, chat.current_word]
-    except IndexError:
-        return False
+    except TypeError:
+        return [False, '', '']
 
 def top_5_players(c_id):
     db_session.global_init(DB_NAME)
@@ -107,9 +108,37 @@ def get_user_score(id, c_id, u, s):
     for user in db_sess.query(Rating).filter(Rating.user_id == id and Rating.chat_id == c_id):
         score = user.score
         cnt = True
-    if cnt == False:
-        get_info(id)
+    if not cnt:
         create_rating(id, s, u, c_id)
         score = 0
-        db_sess.commit()
+    db_sess.commit()
     return score
+
+def active_chat_players_add(c_id, user_id):
+    db_session.global_init(DB_NAME)
+    db_sess = db_session.create_session()
+    for chat in db_sess.query(Chats).filter(Chats.id == c_id):
+        players = chat.players
+        chat.players = ' '.join([players, str(user_id)])
+    db_sess.commit()
+
+def active_chat_players_remove(c_id, user_id):
+    db_session.global_init(DB_NAME)
+    db_sess = db_session.create_session()
+    for chat in db_sess.query(Chats).filter(Chats.id == c_id):
+        players = chat.players
+    chat.players = (players.replace(str(user_id), '')).strip()
+    db_sess.commit()
+
+def active_chat_players_clean(c_id):
+    db_session.global_init(DB_NAME)
+    db_sess = db_session.create_session()
+    for chat in db_sess.query(Chats).filter(Chats.id == c_id):
+        chat.players = ''
+    db_sess.commit()
+
+def active_chat_players_get(c_id):
+    db_session.global_init(DB_NAME)
+    db_sess = db_session.create_session()
+    for chat in db_sess.query(Chats).filter(Chats.id == c_id):
+        return list(map(int, chat.players.split()))

@@ -3,9 +3,10 @@ import sys
 
 from orm_stuff import create_chat, change_started, \
     change_ved, change_word, get_info, score_updates, get_user_info, top_5_players, \
-    get_user_score
+    get_user_score, active_chat_players_get, \
+    active_chat_players_add, active_chat_players_remove, create_rating, \
+    active_chat_players_clean
 from game_funcs import generate_word, help, rules
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
     ConversationHandler, ContextTypes, CallbackQueryHandler
@@ -23,7 +24,6 @@ except Exception:
     print("Не найден токен бота по адресу data/bot_token.txt")
     sys.exit()
 
-active_players = {}  # активные игроки текущего сеанса
 
 # кнопки для чата
 BUTTONS = [
@@ -44,16 +44,17 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
+
     if is_started:
         if ved != '':
             try:
-                ved_info = get_user_info(ved, chat_id)
-                if query.from_user.id == ved_info[0]:
+                if query.from_user.id == ved:
                     if current_word == '':
                         current_word = generate_word(current_word)
                         change_word(chat_id, current_word)
                     await query.answer("•Ваше слово: " + current_word)
                 else:
+                    ved_info = get_user_info(ved, chat_id)
                     await query.answer(f'•Сейчас ведущий {ved_info[2]}')
                 return 1
             except IndexError:
@@ -114,25 +115,27 @@ async def current(update, context):
 
 async def play(update, context):
     chat_id = update.message.chat_id
-    is_started, ved, current_word = get_info(chat_id)
+    try:
+        is_started, ved, current_word = get_info(chat_id)
+    except TypeError:
+        is_started = False
 
     if is_started:
         user = update.effective_user
-        if user.id in active_players:
+        players = active_chat_players_get(chat_id)
+        if user.id in players:
             await update.message.reply_text('•Вы уже в игре.')
         else:
+            score_updates(user.id, 0, user.username, chat_id)
             await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
 
-            if chat_id not in active_players:
-                score_updates(user.id, 0, user.username, chat_id)
+            if len(players) == 0:
                 change_ved(chat_id, user.id)
+                current_word = generate_word(current_word)
+                change_word(chat_id, current_word)
                 await update.message.reply_text(f'💬 @{user.username} объясняет слово.',
                                                 reply_markup=MARKUP)
-                active_players[chat_id] = []
-            m = active_players[chat_id]
-            m.append(user.id)
-            active_players[chat_id] = m
-
+            active_chat_players_add(chat_id, user.id)
             return 1
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
@@ -143,9 +146,10 @@ async def end(update, context):
     # поэтому проверка нахождения в игре не требуется
     chat_id = update.message.chat_id
     user = update.effective_user
-
+    if user.id == get_info(chat_id)[1]:
+        change_ved(chat_id, '')
+    active_chat_players_remove(chat_id, user.id)
     await update.message.reply_text(f'⫸ @{user.username} вышел из игры. ⫷')
-    active_players[chat_id].remove(user.id)
 
     return ConversationHandler.END
 
@@ -224,6 +228,8 @@ async def skip(update, context):
         await update.message.reply_text(
             f'🚨 Смена ведущего:',
             reply_markup=MARKUP_SKIP)
+    else:
+        await update.message.reply_text("•Для подключения бота к чату введите /start")
 
 
 async def scoring(update, context):
@@ -257,7 +263,6 @@ async def start(update, context):
         except TypeError:
             is_started = False
 
-
         if is_started:
             await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
         else:
@@ -276,8 +281,10 @@ async def stop(update, context):
 
     if is_started:
         change_started(chat_id, False)
+        change_ved(chat_id, '')
+        active_chat_players_clean(chat_id)
         # change_word(chat_id, "".join([str(randint(0, 10)) for _ in range(25)]))  # создает рандомный ключ
-        await update.message.reply_text("•Бот успешно отключён. Для выхода из игры отправьте /end")
+        await update.message.reply_text("•Бот успешно отключён.")
     else:
         await update.message.reply_text("•Бот уже отключён.")
 
@@ -314,3 +321,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
