@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import logging
 import sys
 
@@ -243,14 +245,19 @@ async def start(update, context):
     chat_type = update.message.chat.type
     if chat_type in ['group', 'supergroup']:
         chat_id = update.message.chat_id
-        is_started, ved, current_word = get_info(chat_id)
-        if is_started:
-            await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
-        else:
+        try:
+            is_started, ved, current_word = get_info(chat_id)
+            if is_started:
+                await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
+            else:
+                create_chat(chat_id, True, '')
+                await update.message.reply_text("•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
+                await context.bot.sendPhoto(chat_id, (open("data/croco_pic_start.jpg", "rb")))
+        except TypeError:
             create_chat(chat_id, True, '')
-            await update.message.reply_text("•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
+            await update.message.reply_text(
+                "•Бот успешно подключён. Чтобы вступить в игру отправьте /play")
             await context.bot.sendPhoto(chat_id, (open("data/croco_pic_start.jpg", "rb")))
-
     else:
         await update.message.reply_text(
             "👽 Добавьте Крокодила в группу и начинайте игру 👽")
