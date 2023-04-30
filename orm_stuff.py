@@ -29,16 +29,12 @@ def create_chat(c_id, s, w):
 def create_rating(id, s, n, c_id):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
-    cnt = 0
-    for user in db_sess.query(Rating).filter(Rating.user_id == id and Rating.chat_id == c_id):
-        cnt += 1
-    if cnt == 0:
-        user = Rating()
-        user.user_id = id
-        user.score = s
-        user.username = n
-        user.chat_id = c_id
-        db_sess.add(user)
+    user = Rating()
+    user.user_id = id
+    user.score = s
+    user.username = n
+    user.chat_id = c_id
+    db_sess.add(user)
     db_sess.commit()
 
 
@@ -46,13 +42,12 @@ def score_updates(id, score, username, chat_id):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
     cnt = False
-    for user in db_sess.query(Rating).filter(Rating.chat_id == chat_id and Rating.user_id == id):
+    for user in db_sess.query(Rating).filter(Rating.chat_id == chat_id).filter(Rating.user_id == id):
         user.score += score
+        db_sess.commit()
         cnt = True
     if not cnt:
         create_rating(id, score, username, chat_id)
-    db_sess.commit()
-
 
 def change_started(id, s):
     db_session.global_init(DB_NAME)
@@ -80,7 +75,7 @@ def change_word(id, w):
 def get_user_info(id, c_id):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
-    for user in db_sess.query(Rating).filter(Rating.user_id == id and Rating.chat_id == c_id):
+    for user in db_sess.query(Rating).filter(Rating.chat_id == c_id).filter(Rating.user_id == id):
         return [user.user_id, user.score, user.username, user.chat_id]
 
 
@@ -105,7 +100,7 @@ def get_user_score(id, c_id, u, s):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
     cnt = False
-    for user in db_sess.query(Rating).filter(Rating.user_id == id and Rating.chat_id == c_id):
+    for user in db_sess.query(Rating).filter(Rating.chat_id == c_id).filter(Rating.user_id == id):
         score = user.score
         cnt = True
     if not cnt:

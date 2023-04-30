@@ -133,6 +133,8 @@ async def play(update, context):
                 change_ved(chat_id, user.id)
                 current_word = generate_word(current_word)
                 change_word(chat_id, current_word)
+                #score_updates(ved_info[0], 1, ved_info[2], chat_id)
+
                 await update.message.reply_text(f'💬 @{user.username} объясняет слово.',
                                                 reply_markup=MARKUP)
             active_chat_players_add(chat_id, user.id)
@@ -166,12 +168,12 @@ async def response(update, context):
             text = update.message.text.lower()
             user = update.effective_user
             ved_info = get_user_info(ved, chat_id)
-
+            print(ved_info)
             if user.id == ved_info[0]:
                 if current_word in text:
                     await update.message.reply_text(
                         f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
-                    score_updates(user.id, -3, user.username, chat_id)
+                    score_updates(ved_info[0], -3, ved_info[2], chat_id)
 
                     generated_word = generate_word(current_word)
                     change_word(chat_id, generated_word)
@@ -237,6 +239,7 @@ async def scoring(update, context):
     is_started, ved, current_word = get_info(chat_id)
 
     if is_started:
+        print(update.effective_user.username)
         score = get_user_score(update.effective_user.id, chat_id, update.effective_user.username, 0)
         if score != 0:
             await update.message.reply_text(f'•Твои баллы: {score}')
