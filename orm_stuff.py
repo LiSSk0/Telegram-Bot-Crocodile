@@ -26,7 +26,7 @@ def create_chat(c_id, s, w):
 
 
 def change_started(id, s):
-    db_session.global_init("db/croc.db")
+    db_session.global_init("data/croc.db")
     db_sess = db_session.create_session()
     for chat in db_sess.query(Chats).filter(Chats.id == id):
         chat.is_started = s
@@ -34,7 +34,7 @@ def change_started(id, s):
 
 
 def change_ved(id, v):
-    db_session.global_init("db/croc.db")
+    db_session.global_init("data/croc.db")
     db_sess = db_session.create_session()
     for chat in db_sess.query(Chats).filter(Chats.id == id):
         chat.ved = v
@@ -42,7 +42,7 @@ def change_ved(id, v):
 
 
 def change_word(id, w):
-    db_session.global_init("db/croc.db")
+    db_session.global_init("data/croc.db")
     db_sess = db_session.create_session()
     for chat in db_sess.query(Chats).filter(Chats.id == id):
         chat.current_word = w
@@ -50,8 +50,11 @@ def change_word(id, w):
 
 
 def get_info(id):
-    db_session.global_init("db/croc.db")
+    db_session.global_init("data/croc.db")
     db_sess = db_session.create_session()
-    for chat in db_sess.query(Chats).filter(Chats.id == id):
-        return [chat.is_started, chat.ved, chat.current_word]
+    try:
+        for chat in db_sess.query(Chats).filter(Chats.id == id):
+            return [chat.is_started, chat.ved, chat.current_word]
+    except IndexError:
+        return False
 
