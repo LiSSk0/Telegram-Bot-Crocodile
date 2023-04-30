@@ -16,7 +16,7 @@ def generate_word(cur_word):
     return cur_word
 
 
-async def help(update, context):
+async def help(update):
     await update.message.reply_text("""
     ⫸ Команды бота:
     /help - Помощь по боту
@@ -31,7 +31,7 @@ async def help(update, context):
     """)
 
 
-async def rules(update, context):
+async def rules(update):
     await update.message.reply_text("""
     ⫸ Правила игры в крокодила:
     • Есть ведущий и игроки, которые отгадывают слова.

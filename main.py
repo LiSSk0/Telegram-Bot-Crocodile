@@ -3,22 +3,21 @@
 import logging
 import sys
 
-from orm_stuff import create_chat, change_started, \
-    change_ved, change_word, get_info, score_updates, get_user_info, top_5_players, \
-    get_user_score, active_chat_players_get, \
-    active_chat_players_add, active_chat_players_remove, create_rating, \
-    active_chat_players_clean
-from game_funcs import generate_word, help, rules
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, \
     ConversationHandler, ContextTypes, CallbackQueryHandler
+
+from orm_stuff import create_chat, change_started, change_ved, change_word, get_info, \
+    score_updates, get_user_info, top_5_players, get_user_score, active_chat_players_get, \
+    active_chat_players_add, active_chat_players_remove, active_chat_players_clean
+from game_funcs import generate_word, help, rules
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
-CHECK, NEW, CHANGE = 0, 1, 2
+# импортирование токена бота
 try:
     with open('data/bot_token.txt', 'r', encoding='utf-8') as f:
         BOT_TOKEN = f.readline().strip()
@@ -28,6 +27,7 @@ except Exception:
 
 
 # кнопки для чата
+CHECK, NEW, CHANGE = 0, 1, 2
 BUTTONS = [
     [
         InlineKeyboardButton("Посмотреть слово", callback_data=str(CHECK))
@@ -59,8 +59,7 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 await query.answer(f'•Сейчас ведущий {ved_info[2]}')
             return 1
         else:
-            await update.message.reply_text(
-                f'⚠ Для игры нужен ведущий.')
+            await update.message.reply_text(f'⚠ Для игры нужен ведущий.')
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
@@ -69,6 +68,7 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
+
     if is_started:
         if ved != '':
             ved_info = get_user_info(ved, chat_id)
@@ -80,13 +80,12 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 await query.answer("•Сейчас ведущий " + ved_info[2])
             return 1
         else:
-            await query.message.reply_text(
-                f'⚠ Для игры нужен ведущий.')
+            await query.message.reply_text(f'⚠ Для игры нужен ведущий.')
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
 
-async def current(update, context):
+async def current(update):
     chat_id = update.message.chat_id
 
     is_started, ved, current_word = get_info(chat_id)
@@ -103,7 +102,7 @@ async def current(update, context):
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
 
-async def play(update, context):
+async def play(update):
     chat_id = update.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
     if is_started:
@@ -127,7 +126,7 @@ async def play(update, context):
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
 
-async def end(update, context):
+async def end(update):
     # попадает только если user уже вступал в игру по команде /play,
     # поэтому проверка нахождения в игре не требуется
     chat_id = update.message.chat_id
@@ -142,14 +141,13 @@ async def end(update, context):
     return ConversationHandler.END
 
 
-async def response(update, context):
+async def response(update):
     chat_id = update.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
 
     if is_started:
         if ved == '':
-            await update.message.reply_text(
-                f'⚠ Для игры нужен ведущий.')
+            await update.message.reply_text(f'⚠ Для игры нужен ведущий.')
         else:
             text = update.message.text.lower()
             user = update.effective_user
@@ -173,6 +171,7 @@ async def response(update, context):
                     await update.message.reply_text(
                         f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
                         f"@{user.username} +2 балла.\n@{ved_info[2]} +1 балл.")
+
                     score_updates(ved_info[0], 1, ved_info[2], chat_id)
                     score_updates(user.id, 2, user.username, chat_id)
 
@@ -194,6 +193,7 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
+
     if is_started and ved == '':
         change_ved(chat_id, query.from_user.id)
         current_word = generate_word(current_word)
@@ -207,9 +207,10 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await query.answer(f"Ведущий - {ved_info[2]}")
 
 
-async def skip(update, context):
+async def skip(update):
     chat_id = update.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
+
     if is_started:
         change_ved(chat_id, '')
         await update.message.reply_text(
@@ -219,7 +220,7 @@ async def skip(update, context):
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
 
-async def scoring(update, context):
+async def scoring(update):
     chat_id = update.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
 
@@ -229,12 +230,14 @@ async def scoring(update, context):
             await update.message.reply_text(f'•Твои баллы: {score}')
         else:
             await update.message.reply_text(f'•У тебя 0 баллов')
+
         top = top_5_players(chat_id)
         if len(top) == 0:
             a = '•Рейтинг пуст.'
         else:
             a = f'•Текущий топ игроков:\n\n'
             a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
+
         await update.message.reply_text(a)
 
     else:
@@ -263,7 +266,7 @@ async def start(update, context):
             "👽 Добавьте Крокодила в группу и начинайте игру 👽")
 
 
-async def stop(update, context):
+async def stop(update):
     chat_id = update.message.chat_id
     is_started, ved, current_word = get_info(chat_id)
 
@@ -281,6 +284,7 @@ def main():
 
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("rules", rules))
+
     application.add_handler(CommandHandler("current", current))
     application.add_handler(CommandHandler("rating", scoring))
     application.add_handler(CommandHandler("skip", skip))
@@ -308,4 +312,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
