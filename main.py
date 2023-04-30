@@ -47,19 +47,15 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if is_started:
         if ved != '':
-            try:
-                if query.from_user.id == ved:
-                    if current_word == '':
-                        current_word = generate_word(current_word)
-                        change_word(chat_id, current_word)
-                    await query.answer("•Ваше слово: " + current_word)
-                else:
-                    ved_info = get_user_info(ved, chat_id)
-                    await query.answer(f'•Сейчас ведущий {ved_info[2]}')
-                return 1
-            except IndexError:
-                await query.message.reply_text(
-                    f'⚠ {query.from_user.username} не в игре.')
+            if query.from_user.id == ved:
+                if current_word == '':
+                    current_word = generate_word(current_word)
+                    change_word(chat_id, current_word)
+                await query.answer("•Ваше слово: " + current_word)
+            else:
+                ved_info = get_user_info(ved, chat_id)
+                await query.answer(f'•Сейчас ведущий {ved_info[2]}')
+            return 1
         else:
             await update.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -73,18 +69,14 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     is_started, ved, current_word = get_info(chat_id)
     if is_started:
         if ved != '':
-            try:
-                ved_info = get_user_info(ved, chat_id)
-                if query.from_user.id == ved_info[0]:
-                    current_word = generate_word(current_word)
-                    change_word(chat_id, current_word)
-                    await query.answer("•Ваше слово: " + current_word)
-                else:
-                    await query.answer("•Сейчас ведущий " + ved_info[2])
-                return 1
-            except IndexError:
-                await query.message.reply_text(
-                    f'⚠ {query.from_user.username} не в игре.')
+            ved_info = get_user_info(ved, chat_id)
+            if query.from_user.id == ved_info[0]:
+                current_word = generate_word(current_word)
+                change_word(chat_id, current_word)
+                await query.answer("•Ваше слово: " + current_word)
+            else:
+                await query.answer("•Сейчас ведущий " + ved_info[2])
+            return 1
         else:
             await query.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -98,14 +90,10 @@ async def current(update, context):
     is_started, ved, current_word = get_info(chat_id)
     if is_started:
         if ved != '':
-            try:
-                ved_info = get_user_info(ved, chat_id)
-                await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
-                                                reply_markup=MARKUP)
-                return 1
-            except IndexError:
-                await update.message.reply_text(f'⚠ {update.effective_user} не в игре.')
-
+            ved_info = get_user_info(ved, chat_id)
+            await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
+                                            reply_markup=MARKUP)
+            return 1
         else:
             await update.message.reply_text(
                 f'⚠ Для игры нужен ведущий.')
@@ -115,11 +103,7 @@ async def current(update, context):
 
 async def play(update, context):
     chat_id = update.message.chat_id
-    try:
-        is_started, ved, current_word = get_info(chat_id)
-    except TypeError:
-        is_started = False
-
+    is_started, ved, current_word = get_info(chat_id)
     if is_started:
         user = update.effective_user
         players = active_chat_players_get(chat_id)
@@ -133,8 +117,6 @@ async def play(update, context):
                 change_ved(chat_id, user.id)
                 current_word = generate_word(current_word)
                 change_word(chat_id, current_word)
-                #score_updates(ved_info[0], 1, ved_info[2], chat_id)
-
                 await update.message.reply_text(f'💬 @{user.username} объясняет слово.',
                                                 reply_markup=MARKUP)
             active_chat_players_add(chat_id, user.id)
@@ -150,9 +132,11 @@ async def end(update, context):
     user = update.effective_user
     if user.id == get_info(chat_id)[1]:
         change_ved(chat_id, '')
-    active_chat_players_remove(chat_id, user.id)
-    await update.message.reply_text(f'⫸ @{user.username} вышел из игры. ⫷')
-
+        await update.message.reply_text(f'⫸ Ведущий @{user.username} вышел из игры. ⫷')
+        active_chat_players_remove(chat_id, user.id)
+    else:
+        await update.message.reply_text(f'⫸ @{user.username} вышел из игры. ⫷')
+        active_chat_players_remove(chat_id, user.id)
     return ConversationHandler.END
 
 
@@ -168,7 +152,6 @@ async def response(update, context):
             text = update.message.text.lower()
             user = update.effective_user
             ved_info = get_user_info(ved, chat_id)
-            print(ved_info)
             if user.id == ved_info[0]:
                 if current_word in text:
                     await update.message.reply_text(
@@ -239,7 +222,6 @@ async def scoring(update, context):
     is_started, ved, current_word = get_info(chat_id)
 
     if is_started:
-        print(update.effective_user.username)
         score = get_user_score(update.effective_user.id, chat_id, update.effective_user.username, 0)
         if score != 0:
             await update.message.reply_text(f'•Твои баллы: {score}')
@@ -261,11 +243,7 @@ async def start(update, context):
     chat_type = update.message.chat.type
     if chat_type in ['group', 'supergroup']:
         chat_id = update.message.chat_id
-        try:
-            is_started, ved, current_word = get_info(chat_id)
-        except TypeError:
-            is_started = False
-
+        is_started, ved, current_word = get_info(chat_id)
         if is_started:
             await update.message.reply_text("•Бот уже подключён. Чтобы вступить в игру отправьте /play")
         else:
@@ -286,7 +264,6 @@ async def stop(update, context):
         change_started(chat_id, False)
         change_ved(chat_id, '')
         active_chat_players_clean(chat_id)
-        # change_word(chat_id, "".join([str(randint(0, 10)) for _ in range(25)]))  # создает рандомный ключ
         await update.message.reply_text("•Бот успешно отключён.")
     else:
         await update.message.reply_text("•Бот уже отключён.")

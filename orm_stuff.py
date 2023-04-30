@@ -75,8 +75,11 @@ def change_word(id, w):
 def get_user_info(id, c_id):
     db_session.global_init(DB_NAME)
     db_sess = db_session.create_session()
-    for user in db_sess.query(Rating).filter(Rating.chat_id == c_id).filter(Rating.user_id == id):
-        return [user.user_id, user.score, user.username, user.chat_id]
+    try:
+        for user in db_sess.query(Rating).filter(Rating.chat_id == c_id).filter(Rating.user_id == id):
+            return [user.user_id, user.score, user.username, user.chat_id]
+    except TypeError:
+        return ['',  0, '', c_id]
 
 
 def get_info(id):
