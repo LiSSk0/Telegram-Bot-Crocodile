@@ -1,10 +1,9 @@
 import logging
-import sqlite3
 import sys
 
 from orm_stuff import create_chat, change_started, \
-    change_ved, change_word, get_info
-from rating_funcs import top_5_players, score_updates, get_user_info
+    change_ved, change_word, get_info, score_updates, get_user_info, top_5_players, \
+    get_user_score
 from game_funcs import generate_word, help, rules
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -17,7 +16,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CHECK, NEW, CHANGE = 0, 1, 2
-DB_NAME = 'data/crocodile.db'
 try:
     with open('data/bot_token.txt', 'r', encoding='utf-8') as f:
         BOT_TOKEN = f.readline().strip()
@@ -49,7 +47,7 @@ async def check_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if is_started:
         if ved != '':
             try:
-                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                ved_info = get_user_info(ved, chat_id)
                 if query.from_user.id == ved_info[0]:
                     if current_word == '':
                         current_word = generate_word(current_word)
@@ -75,7 +73,7 @@ async def new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if is_started:
         if ved != '':
             try:
-                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                ved_info = get_user_info(ved, chat_id)
                 if query.from_user.id == ved_info[0]:
                     current_word = generate_word(current_word)
                     change_word(chat_id, current_word)
@@ -100,7 +98,7 @@ async def current(update, context):
     if is_started:
         if ved != '':
             try:
-                ved_info = get_user_info(DB_NAME, ved, chat_id)
+                ved_info = get_user_info(ved, chat_id)
                 await update.message.reply_text(f'💬 @{ved_info[2]} объясняет слово.',
                                                 reply_markup=MARKUP)
                 return 1
@@ -126,7 +124,7 @@ async def play(update, context):
             await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
 
             if chat_id not in active_players:
-                score_updates(DB_NAME, user.id, 1, user.username, chat_id)
+                score_updates(user.id, 1, user.username, chat_id)
                 change_ved(chat_id, user.id)
                 await update.message.reply_text(f'💬 @{user.username} объясняет слово.',
                                                 reply_markup=MARKUP)
@@ -163,13 +161,13 @@ async def response(update, context):
         else:
             text = update.message.text.lower()
             user = update.effective_user
-            ved_info = get_user_info(DB_NAME, ved, chat_id)
+            ved_info = get_user_info(ved, chat_id)
 
             if user.id == ved_info[0]:
                 if current_word in text:
                     await update.message.reply_text(
                         f"🌟 Ведущий @{user.username} написал ответ в чат, -3 балла.")
-                    score_updates(DB_NAME, user.id, -3, user.username, chat_id)
+                    score_updates(user.id, -3, user.username, chat_id)
 
                     generated_word = generate_word(current_word)
                     change_word(chat_id, generated_word)
@@ -184,8 +182,8 @@ async def response(update, context):
                     await update.message.reply_text(
                         f"🌟 Правильно! @{user.username} даёт правильный ответ - {current_word}.\n" +
                         f"@{user.username} +2 балла.\n@{ved_info[2]} +1 балл.")
-                    score_updates(DB_NAME, ved_info[0], 1, ved_info[2], chat_id)
-                    score_updates(DB_NAME, user.id, 2, user.username, chat_id)
+                    score_updates(ved_info[0], 1, ved_info[2], chat_id)
+                    score_updates(user.id, 2, user.username, chat_id)
 
                     change_ved(chat_id, user.id)
 
@@ -214,7 +212,7 @@ async def new_ved(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                        reply_markup=MARKUP)
         return 1
     else:
-        ved_info = get_user_info(DB_NAME, ved, chat_id)
+        ved_info = get_user_info(ved, chat_id)
         await query.answer(f"Ведущий - {ved_info[2]}")
 
 
@@ -233,21 +231,12 @@ async def scoring(update, context):
     is_started, ved, current_word = get_info(chat_id)
 
     if is_started:
-        con = sqlite3.connect(DB_NAME)
-        cur = con.cursor()
-        cur.execute("SELECT COUNT(*) FROM rating WHERE (userid = (?) and chat_id = (?))",
-                    (update.effective_user.id, chat_id))
-
-        if cur.fetchone()[0] > 0:
-            cur.execute("SELECT score FROM rating WHERE (userid = (?) and chat_id = (?))",
-                        (update.effective_user.id, chat_id))
-            await update.message.reply_text(f'•Твои баллы: {cur.fetchone()[0]}')
+        score = get_user_score(update.effective_user.id, chat_id, update.effective_user.username, 0)
+        if score != 0:
+            await update.message.reply_text(f'•Твои баллы: {score}')
         else:
-            cur.execute("INSERT INTO rating (userid, score, username, chat_id) VALUES (?, ?, ?, ?)",
-                        (update.effective_user.id, 0, update.effective_user.username, chat_id))
             await update.message.reply_text(f'•У тебя 0 баллов')
-
-        top = top_5_players(DB_NAME, chat_id)
+        top = top_5_players(chat_id)
         if len(top) == 0:
             a = '•Рейтинг пуст.'
         else:
@@ -255,8 +244,6 @@ async def scoring(update, context):
             a += '\n'.join([f'@{i[0]}: {i[1]}' for i in top])
         await update.message.reply_text(a)
 
-        con.commit()
-        cur.close()
     else:
         await update.message.reply_text("•Для подключения бота к чату введите /start")
 
