@@ -124,7 +124,7 @@ async def play(update, context):
             await update.message.reply_text(f'⫸ @{user.username} теперь в игре! ⫷')
 
             if chat_id not in active_players:
-                score_updates(user.id, 1, user.username, chat_id)
+                score_updates(user.id, 0, user.username, chat_id)
                 change_ved(chat_id, user.id)
                 await update.message.reply_text(f'💬 @{user.username} объясняет слово.',
                                                 reply_markup=MARKUP)
