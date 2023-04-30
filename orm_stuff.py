@@ -49,32 +49,9 @@ def change_word(id, w):
     db_sess.commit()
 
 
-# def get_info_started(id):
-#     db_session.global_init("db/croc.db")
-#     db_sess = db_session.create_session()
-#     for chat in db_sess.query(Chats).filter(Chats.id == id):
-#         return chat.is_started
-
-
 def get_info(id):
     db_session.global_init("db/croc.db")
     db_sess = db_session.create_session()
     for chat in db_sess.query(Chats).filter(Chats.id == id):
         return [chat.is_started, chat.ved, chat.current_word]
 
-
-# def get_info_ved(id):
-#     db_session.global_init("db/croc.db")
-#     db_sess = db_session.create_session()
-#     try:
-#         for chat in db_sess.query(Chats).filter(Chats.id == id):
-#             return chat.ved
-#     except IndexError:
-#         return 0
-
-
-# def get_info_word(id):
-#     db_session.global_init("db/croc.db")
-#     db_sess = db_session.create_session()
-#     for chat in db_sess.query(Chats).filter(Chats.id == id):
-#         return chat.current_word
